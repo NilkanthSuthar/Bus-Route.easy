@@ -510,8 +510,26 @@ button {
   font-size: 10px;
 }
 
-.osm-dark {
-  filter: invert(1) hue-rotate(180deg) brightness(0.9) contrast(0.9) saturate(0.4);
+/* OpenStreetMap's default style is busy; tone it down so bus lines stand out. */
+.basemap {
+  filter: saturate(0.3) brightness(1.04) contrast(0.92);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .basemap {
+    filter: invert(1) hue-rotate(180deg) saturate(0.25) brightness(0.85) contrast(0.9);
+  }
+}
+
+:root[data-theme='dark'] .basemap {
+  filter: invert(1) hue-rotate(180deg) saturate(0.25) brightness(0.85) contrast(0.9);
+}
+
+/* Pinch to zoom on phones; the buttons only add clutter there. */
+@media (max-width: 720px) {
+  .leaflet-control-zoom {
+    display: none;
+  }
 }
 
 #map .leaflet-bar {

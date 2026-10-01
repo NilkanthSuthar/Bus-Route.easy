@@ -34,7 +34,7 @@ We collaborated with local depot authorities and validated the idea with real us
 | Layer         | Tools                                               |
 |---------------|-----------------------------------------------------|
 | Frontend      | Vanilla JavaScript, Vite                            |
-| Map           | Leaflet, CARTO tiles (OpenStreetMap without a key)  |
+| Map           | Leaflet, OpenStreetMap tiles (no API key)           |
 | Data pipeline | Python, pyshp                                       |
 | Data          | Vadodara bus stop and depot shapefiles → static JSON |
 | Tests         | Vitest, pytest                                      |
@@ -54,8 +54,6 @@ npm install
 npm run data   # builds web/public/data/*.json from the shapefiles
 npm run dev    # http://localhost:5173
 ```
-
-**Map tiles:** CARTO's basemaps need a free API key from [carto.com/basemaps/apikey](https://carto.com/basemaps/apikey). Copy `.env.example` to `.env.local` and set `VITE_CARTO_KEY`, then restart `npm run dev`. Without a key the map uses standard OpenStreetMap tiles. For the deployed site, add the same key as a repository secret named `VITE_CARTO_KEY` (Settings → Secrets and variables → Actions).
 
 Other commands:
 

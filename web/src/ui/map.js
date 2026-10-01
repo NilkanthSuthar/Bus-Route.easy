@@ -1,8 +1,13 @@
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { basemap } from './tiles.js';
 
-const CARTO_KEY = import.meta.env.VITE_CARTO_KEY ?? '';
+// Standard OpenStreetMap tiles. They're muted with a CSS filter (see
+// .basemap in styles.css) so the bus lines stand out, and inverted in dark mode.
+const TILE_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+const ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
+
+// Stop dots only appear once zoomed in far enough to tell them apart.
+const STOPS_MIN_ZOOM = 15;
 
 const darkQuery = window.matchMedia('(prefers-color-scheme: dark)');
 const isDark = () => {
@@ -20,52 +25,72 @@ export function createMap(el, index, { onPlaceClick, insets }) {
   );
   L.control.zoom({ position: 'topright' }).addTo(map);
 
-  let tiles = null;
-  function setTiles() {
-    if (tiles) tiles.remove();
-    const { url, options } = basemap({ dark: isDark(), cartoKey: CARTO_KEY });
-    tiles = L.tileLayer(url, options).addTo(map);
-  }
-  setTiles();
-  darkQuery.addEventListener('change', () => {
-    setTiles();
-    redraw();
-  });
+  L.tileLayer(TILE_URL, { attribution: ATTRIBUTION, maxZoom: 19, className: 'basemap' }).addTo(map);
+  darkQuery.addEventListener('change', () => redraw());
 
   const network = L.layerGroup().addTo(map);
+  const networkStops = L.layerGroup();
   const focus = L.layerGroup().addTo(map);
   let userMarker = null;
   let accuracyCircle = null;
   let current = { kind: 'overview' };
 
-  const patternLine = (p) => p.stop_ids.map((id) => latlng(index.stop(id)));
+  /**
+   * The path a bus takes between two positions on a pattern. Uses the road
+   * shape when the data has one, otherwise straight lines between stops.
+   */
+  function path(pattern, from = 0, to = pattern.stop_ids.length - 1) {
+    const points = [latlng(index.stop(pattern.stop_ids[from]))];
+    for (let i = from; i < to; i++) {
+      const segment = pattern.segments?.[i];
+      if (segment?.length) points.push(...segment.slice(1));
+      else points.push(latlng(index.stop(pattern.stop_ids[i + 1])));
+    }
+    return points;
+  }
+  const patternLine = (p) => path(p);
 
-  function drawNetwork(faded) {
+  /** All lines, plus stop dots when zoomed in. Only shown on the home screen. */
+  function drawNetwork() {
     network.clearLayers();
+    networkStops.clearLayers();
     for (const p of index.patterns) {
       if (p.direction !== 'out' && index.pattern(p.route_id, 'out')) continue;
       L.polyline(patternLine(p), {
         color: index.route(p.route_id).color,
-        weight: faded ? 3 : 4,
-        opacity: faded ? 0.18 : 0.55,
+        weight: 3,
+        opacity: 0.7,
         interactive: false,
       }).addTo(network);
     }
     for (const place of index.places) {
       if (!place.routes.length) continue;
       L.circleMarker(latlng(place), {
-        radius: faded ? 2.5 : 3.5,
-        color: css('--ink-3'),
-        weight: 1,
+        radius: 4,
+        color: css('--ink-2'),
+        weight: 1.5,
         fillColor: css('--surface'),
         fillOpacity: 1,
-        opacity: faded ? 0.5 : 1,
       })
         .bindTooltip(place.name, { className: 'stop-tip', direction: 'top', offset: [0, -4] })
         .on('click', () => onPlaceClick(place))
-        .addTo(network);
+        .addTo(networkStops);
     }
+    network.addLayer(networkStops);
+    syncStops();
   }
+
+  function hideNetwork() {
+    network.clearLayers();
+    networkStops.clearLayers();
+  }
+
+  function syncStops() {
+    const show = map.getZoom() >= STOPS_MIN_ZOOM;
+    if (show && !network.hasLayer(networkStops)) network.addLayer(networkStops);
+    if (!show && network.hasLayer(networkStops)) network.removeLayer(networkStops);
+  }
+  map.on('zoomend', syncStops);
 
   // `point` is where to draw; `place` is what opens when it is clicked.
   function stopDot(point, place, color, big) {
@@ -93,13 +118,13 @@ export function createMap(el, index, { onPlaceClick, insets }) {
   function overview(center) {
     current = { kind: 'overview', center };
     focus.clearLayers();
-    drawNetwork(false);
+    drawNetwork();
     if (center) fit(L.latLng(latlng(center)).toBounds(1400), 15);
   }
 
   function showPattern(pattern, fromStopId) {
     current = { kind: 'pattern', pattern, fromStopId };
-    drawNetwork(true);
+    hideNetwork();
     focus.clearLayers();
     const color = index.route(pattern.route_id).color;
     const line = patternLine(pattern);
@@ -114,7 +139,7 @@ export function createMap(el, index, { onPlaceClick, insets }) {
 
   function showPlace(place) {
     current = { kind: 'place', place };
-    drawNetwork(true);
+    hideNetwork();
     focus.clearLayers();
     const lines = new Set();
     for (const { pattern } of index.departuresAt(place)) {
@@ -135,7 +160,7 @@ export function createMap(el, index, { onPlaceClick, insets }) {
   /** Draws one planned trip: bus legs in line colours, walks dashed. */
   function showTrip(trip, from, to, { fit: refit = true } = {}) {
     current = { kind: 'trip', trip, from, to };
-    drawNetwork(true);
+    hideNetwork();
     focus.clearLayers();
     const points = [latlng(from), latlng(to)];
     let here = from;
@@ -153,7 +178,7 @@ export function createMap(el, index, { onPlaceClick, insets }) {
         here = target;
       } else if (leg.type === 'ride') {
         const ids = leg.pattern.stop_ids.slice(leg.fromPos, leg.toPos + 1);
-        const line = ids.map((id) => latlng(index.stop(id)));
+        const line = path(leg.pattern, leg.fromPos, leg.toPos);
         points.push(...line);
         L.polyline(line, { color: css('--surface'), weight: 11, interactive: false }).addTo(focus);
         L.polyline(line, { color: leg.route.color, weight: 6, interactive: false }).addTo(focus);
@@ -214,9 +239,9 @@ export function createMap(el, index, { onPlaceClick, insets }) {
     if (current.kind === 'trip') showTrip(current.trip, current.from, current.to, { fit: false });
     else if (current.kind === 'pattern') showPattern(current.pattern, current.fromStopId);
     else if (current.kind === 'place') showPlace(current.place);
-    else drawNetwork(false);
+    else drawNetwork();
   }
 
-  drawNetwork(false);
+  drawNetwork();
   return { overview, showPattern, showPlace, showTrip, setUser, centerOn, invalidate: () => map.invalidateSize() };
 }
