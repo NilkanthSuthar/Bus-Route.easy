@@ -17,6 +17,7 @@ def test_name_cleanup():
 def test_headsign():
     assert headsign("Station To Tarsali") == "Tarsali"
     assert headsign("Tarsali To Station") == "Station"
+    assert headsign("Station To Station Circular") == "Circular"
 
 
 def test_generated_data_is_valid(data):

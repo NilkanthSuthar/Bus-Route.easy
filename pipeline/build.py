@@ -108,6 +108,8 @@ def route_names(stops):
 
 def headsign(name):
     """'Station To Tarsali' -> 'Tarsali', 'Tarsali To Station' -> 'Station'."""
+    if "circular" in name.lower():
+        return "Circular"
     parts = re.split(r"\s+to\s+", name, flags=re.IGNORECASE)
     return parts[-1].strip() if len(parts) > 1 else name
 
