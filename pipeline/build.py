@@ -205,7 +205,7 @@ def build(out_dir, log=print):
     }
     out_dir.mkdir(parents=True, exist_ok=True)
     for key, value in data.items():
-        (out_dir / f"{key}.json").write_text(json.dumps(value, ensure_ascii=False, separators=(",", ":")))
+        (out_dir / f"{key}.json").write_text(json.dumps(value, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
 
     log(f"{len(public_stops)} stops, {len(routes)} routes, {len(patterns)} patterns, "
         f"{len(transfers)} transfers, {len(depots)} depots -> {out_dir}")

@@ -41,7 +41,7 @@ We collaborated with local depot authorities and validated the idea with real us
 
 ## 🧪 How to Run Locally
 
-Needs Node 20+ and Python 3.10+.
+Needs **Node 22.12+** ([nodejs.org](https://nodejs.org), LTS) and **Python 3.10+** ([python.org](https://www.python.org/downloads/); on Windows tick "Add python.exe to PATH").
 
 ```bash
 git clone https://github.com/NilkanthSuthar/Bus-Route.easy.git
