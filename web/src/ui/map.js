@@ -231,6 +231,22 @@ export function createMap(el, index, { onPlaceClick, insets }) {
     accuracyCircle.setLatLng(latlng(position)).setRadius(Math.min(accuracy ?? 0, 500));
   }
 
+  /** Waits for one tap on the map; returns a function that cancels. */
+  function pickPoint(onPick) {
+    const container = map.getContainer();
+    container.classList.add('picking');
+    const handler = (e) => {
+      cancel();
+      onPick({ lat: e.latlng.lat, lon: e.latlng.lng });
+    };
+    function cancel() {
+      container.classList.remove('picking');
+      map.off('click', handler);
+    }
+    map.on('click', handler);
+    return cancel;
+  }
+
   function centerOn(position) {
     fit(L.latLng(latlng(position)).toBounds(900), 16);
   }
@@ -243,5 +259,5 @@ export function createMap(el, index, { onPlaceClick, insets }) {
   }
 
   drawNetwork();
-  return { overview, showPattern, showPlace, showTrip, setUser, centerOn, invalidate: () => map.invalidateSize() };
+  return { overview, showPattern, showPlace, showTrip, setUser, centerOn, pickPoint, invalidate: () => map.invalidateSize() };
 }

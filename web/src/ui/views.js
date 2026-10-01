@@ -1,9 +1,12 @@
 import { nearbyLines, nearbyPlaces } from '../data/index.js';
 import { distanceM, formatDistance, walkMinutes, walkingMetres } from '../lib/geo.js';
 import { search } from '../lib/search.js';
+import { pointId } from '../lib/geocode.js';
 import { ASSUMPTIONS } from '../routing/planner.js';
 
 const ICONS = {
+  pin: '<svg viewBox="0 0 24 24"><path d="M12 2a7 7 0 0 1 7 7c0 5-7 13-7 13S5 14 5 9a7 7 0 0 1 7-7Zm0 4a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z"/></svg>',
+  map: '<svg viewBox="0 0 24 24"><path d="m15 5-6-2-6 2.5v15.5l6-2.5 6 2 6-2.5V2.5L15 5Zm-1 13.2-4-1.3V5.8l4 1.3v11.1Z"/></svg>',
   back: '<svg viewBox="0 0 24 24"><path d="M15.4 5.4 14 4l-8 8 8 8 1.4-1.4L8.8 12z"/></svg>',
   swap: '<svg viewBox="0 0 24 24"><path d="M7 4 3 8l4 4V9h10V7H7V4Zm10 8v3H7v2h10v3l4-4-4-4Z"/></svg>',
   stop: '<svg viewBox="0 0 24 24"><path d="M12 2a7 7 0 0 1 7 7c0 5-7 13-7 13S5 14 5 9a7 7 0 0 1 7-7Zm0 4.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5Z"/></svg>',
@@ -105,11 +108,16 @@ function placeRow(index, place, distance, href = placeHref(place)) {
  * Search results. While choosing a trip's start or end (`pick`), only places
  * are listed and they link back to the planner.
  */
-export function searchView(index, query, origin, pick) {
+/**
+ * Search results: stops and lines from our data, then places and addresses
+ * from the geocoder (`geo`: { status, results }). While choosing a trip's
+ * start or end (`pick`), lines are left out and everything links back to the
+ * planner; otherwise a place links to directions from here.
+ */
+export function searchView(index, query, origin, pick, geo = { status: 'idle', results: [] }) {
   if (pick && !query) return pickSuggestions(index, origin, pick);
   const results = search(index, query).filter((r) => !pick || r.type === 'place');
-  if (!results.length) return `<p class="empty">No stops or lines match “${esc(query)}”.</p>`;
-  return results
+  const local = results
     .map((r) => {
       if (r.type === 'place') {
         const href = pick ? pick.href(r.place.id) : undefined;
@@ -125,6 +133,48 @@ export function searchView(index, query, origin, pick) {
       </a>`;
     })
     .join('');
+
+  const places = geoRows(geo, origin, (place) =>
+    pick ? pick.href(pointId(place)) : planHref('here', pointId(place)),
+  );
+  const mapRow = pick ? chooseOnMapRow(pick) : '';
+
+  if (!local && !places) {
+    return `<p class="empty">Nothing matches “${esc(query)}”.</p>${mapRow}`;
+  }
+  return `${local ? `<h2 class="section-title">Stops${pick ? '' : ' and lines'}</h2>${local}` : ''}${places}${mapRow}`;
+}
+
+function geoRows(geo, origin, hrefFor) {
+  if (geo.status === 'loading' && !geo.results.length) {
+    return '<h2 class="section-title">Places</h2><p class="note">Searching places…</p>';
+  }
+  if (geo.status === 'error') {
+    return '<h2 class="section-title">Places</h2><p class="note">Place search needs an internet connection.</p>';
+  }
+  if (!geo.results.length) return '';
+  return `<h2 class="section-title">Places</h2>${geo.results
+    .map(
+      (place) => `<a class="row" href="${hrefFor(place)}">
+        <span class="place-icon">${ICONS.pin}</span>
+        <span class="dir-text">
+          <span class="headsign">${esc(place.name)}</span>
+          ${place.detail ? `<span class="sub">${esc(place.detail)}</span>` : ''}
+        </span>
+        <span class="sub">${formatDistance(distanceM(origin, place))}</span>
+      </a>`,
+    )
+    .join('')}`;
+}
+
+function chooseOnMapRow(pick) {
+  return `<a class="row" href="#" data-map-pick="${pick.field}">
+    <span class="place-icon">${ICONS.map}</span>
+    <span class="dir-text">
+      <span class="headsign">Choose on map</span>
+      <span class="sub">Tap anywhere to set the ${pick.field === 'from' ? 'start' : 'destination'}</span>
+    </span>
+  </a>`;
 }
 
 function pickSuggestions(index, origin, pick) {
@@ -138,6 +188,7 @@ function pickSuggestions(index, origin, pick) {
     <h2 class="section-title">${pick.field === 'from' ? 'Choose a start' : 'Choose a destination'}
       <a class="link" href="${pick.cancelHref}">Cancel</a></h2>
     ${here}
+    ${chooseOnMapRow(pick)}
     ${pick.recent
       .map((place) => placeRow(index, place, distanceM(origin, place), pick.href(place.id)))
       .join('')}
@@ -309,12 +360,14 @@ export function planView(index, { from, to, options, selected }) {
         .map((l) => (l.type === 'ride' ? badge(l.route, 'sm') : `<span class="walk-icon">${ICONS.walk}</span>`))
         .join('<span class="chev">›</span>');
       const firstRide = o.legs.find((l) => l.type === 'ride');
-      const facts = [
-        o.tags.map((t) => TAG_LABELS[t]).join(' · '),
-        o.rides ? (o.changes ? `${o.changes} change${o.changes > 1 ? 's' : ''}` : 'No changes') : null,
-        o.walkMetres >= 50 ? `${mins(o.walkMinutes)} walk` : null,
-        firstRide ? `from ${index.placeOfStop(firstRide.from).name}` : formatDistance(o.walkMetres),
-      ].filter(Boolean);
+      const facts = firstRide
+        ? [
+            o.tags.map((t) => TAG_LABELS[t]).join(' · '),
+            o.changes ? `${o.changes} change${o.changes > 1 ? 's' : ''}` : 'No changes',
+            o.walkMetres >= 50 ? `${mins(o.walkMinutes)} walk` : null,
+            `from ${index.placeOfStop(firstRide.from).name}`,
+          ].filter(Boolean)
+        : ['Walk all the way', formatDistance(o.walkMetres)];
       return `<a class="trip-card ${i === selected ? 'selected' : ''}" href="${planHref(from.id, to.id, i)}">
         <span class="trip-top">
           <span class="trip-chain">${chain}</span>

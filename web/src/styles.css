@@ -923,3 +923,53 @@ button {
   color: var(--ink-3);
   font-size: 11px;
 }
+
+/* ---------- Choosing a point on the map ---------- */
+
+.map-banner {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: max-content;
+  max-width: calc(100% - 32px);
+  padding: 10px 10px 10px 16px;
+  border-radius: 14px;
+  background: var(--ink);
+  color: var(--surface);
+  font-weight: 600;
+  box-shadow: var(--shadow);
+}
+
+.map-banner[hidden] {
+  display: none;
+}
+
+.map-banner button {
+  border: 0;
+  border-radius: 10px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.16);
+  color: inherit;
+  font-weight: 700;
+}
+
+@media (max-width: 720px) {
+  .map-banner {
+    left: 16px;
+    right: 16px;
+    width: auto;
+    max-width: none;
+    transform: none;
+    justify-content: space-between;
+  }
+}
+
+#map.picking,
+#map.picking .leaflet-interactive {
+  cursor: crosshair;
+}
