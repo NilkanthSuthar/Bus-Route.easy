@@ -1,0 +1,25 @@
+{
+  "name": "bus-route-easy",
+  "private": true,
+  "version": "0.2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "data": "node scripts/python.mjs pipeline/build.py",
+    "shapes": "npm run data && node scripts/python.mjs pipeline/shapes.py && npm run data",
+    "dev": "vite",
+    "build": "npm run data && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:data": "node scripts/python.mjs -m pytest -q pipeline/tests"
+  },
+  "devDependencies": {
+    "vite": "^8.3.2",
+    "vitest": "^5.0.3"
+  },
+  "dependencies": {
+    "leaflet": "^1.9.4"
+  }
+}
