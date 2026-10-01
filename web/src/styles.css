@@ -510,6 +510,10 @@ button {
   font-size: 10px;
 }
 
+.osm-dark {
+  filter: invert(1) hue-rotate(180deg) brightness(0.9) contrast(0.9) saturate(0.4);
+}
+
 #map .leaflet-bar {
   border: 0;
   border-radius: 12px;

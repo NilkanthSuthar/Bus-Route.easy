@@ -3,3 +3,4 @@ dist/
 web/public/data/
 __pycache__/
 .pytest_cache/
+*.local

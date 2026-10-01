@@ -30,6 +30,8 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
+        env:
+          VITE_CARTO_KEY: ${{ secrets.VITE_CARTO_KEY }}
 
       - uses: actions/upload-pages-artifact@v3
         if: github.ref == 'refs/heads/master'

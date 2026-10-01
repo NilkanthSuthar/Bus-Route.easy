@@ -1,12 +1,8 @@
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { basemap } from './tiles.js';
 
-const TILES = {
-  light: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-  dark: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-};
-const ATTRIBUTION =
-  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>';
+const CARTO_KEY = import.meta.env.VITE_CARTO_KEY ?? '';
 
 const darkQuery = window.matchMedia('(prefers-color-scheme: dark)');
 const isDark = () => {
@@ -24,13 +20,15 @@ export function createMap(el, index, { onPlaceClick, insets }) {
   );
   L.control.zoom({ position: 'topright' }).addTo(map);
 
-  let tiles = L.tileLayer(TILES[isDark() ? 'dark' : 'light'], {
-    attribution: ATTRIBUTION,
-    subdomains: 'abcd',
-    maxZoom: 19,
-  }).addTo(map);
+  let tiles = null;
+  function setTiles() {
+    if (tiles) tiles.remove();
+    const { url, options } = basemap({ dark: isDark(), cartoKey: CARTO_KEY });
+    tiles = L.tileLayer(url, options).addTo(map);
+  }
+  setTiles();
   darkQuery.addEventListener('change', () => {
-    tiles.setUrl(TILES[isDark() ? 'dark' : 'light']);
+    setTiles();
     redraw();
   });
 
