@@ -43,6 +43,30 @@ describe('planTrip', () => {
   });
 });
 
+describe('walking limits', () => {
+  // Line L stops at X, 500 m from the start. The destination is 700 m past X
+  // and out of reach of any line, so there is no real bus trip.
+  const net = {
+    stops: [
+      { id: 'x', name: 'X', lat: 22.3, lon: 73.1048, routes: [] },
+      { id: 'y', name: 'Y', lat: 22.35, lon: 73.2, routes: [] },
+    ],
+    routes: [{ id: 'L', name: 'L', color: '#000', directions: ['out'] }],
+    route_stops: [{ route_id: 'L', direction: 'out', headsign: 'Y', stop_ids: ['x', 'y'] }],
+    transfers: [],
+    depots: [],
+  };
+  const idx = buildIndex(net);
+
+  it('never gets on a bus and straight off again to chain walks', () => {
+    const start = { lat: 22.3, lon: 73.1 };
+    const end = { lat: 22.3, lon: 73.1116 };
+    for (const option of planTrip(idx, start, end)) {
+      for (const ride of rides(option)) expect(ride.stops).toBeGreaterThan(0);
+    }
+  });
+});
+
 describe('fastest vs fewest changes', () => {
   // Slow line S loops far out; quick lines Q1 + Q2 need a change at "Hub".
   const net = {

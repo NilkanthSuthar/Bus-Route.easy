@@ -1,18 +1,15 @@
-import { distanceM } from '../lib/geo.js';
+import { distanceM, walkingMetres, walkingMin as walkMin } from '../lib/geo.js';
 
 // There are no timetables, so every time here is an estimate.
 export const ASSUMPTIONS = {
   busMetresPerMin: 300, // ~18 km/h average city bus speed, stops included
   dwellMin: 0.5, // time spent at each intermediate stop
   waitMin: 10, // average wait for a bus (half of a ~20 min gap between buses)
-  walkMetresPerMin: 80,
   maxAccessWalkM: 800, // walk to the first stop
   maxTransferWalkM: 400, // walk between stops when changing buses
   maxEgressWalkM: 800, // walk from the last stop
   maxWalkOnlyM: 1500, // offer just walking below this distance
 };
-
-const walkMin = (m) => m / ASSUMPTIONS.walkMetresPerMin;
 
 // Cost vectors are [boardings, minutes]. The two modes rank them differently.
 const MODES = {
@@ -151,8 +148,15 @@ function search(index, from, to, mode) {
       }
     } else if (node.startsWith('s:')) {
       const stopId = node.slice(2);
+      // Boarding includes the ride to the next stop, so a trip can never
+      // get on and straight off again (which would let walks chain up).
       for (const { p, pos } of boardings.get(stopId) ?? []) {
-        relax(`p:${p}:${pos}`, [b + 1, t + ASSUMPTIONS.waitMin], { from: node, type: 'board', p, pos });
+        relax(`p:${p}:${pos + 1}`, [b + 1, t + ASSUMPTIONS.waitMin + rideMin[p][pos]], {
+          from: node,
+          type: 'board',
+          p,
+          pos,
+        });
       }
     } else if (node.startsWith('a:')) {
       const stopId = node.slice(2);
@@ -192,11 +196,20 @@ function toItinerary(index, edges, totalMin) {
 
   for (const e of edges) {
     if (e.type === 'walk') {
-      if (e.m >= 30) legs.push({ type: 'walk', from: lastStop, to: e.to, metres: e.m, minutes: walkMin(e.m) });
+      if (e.m >= 30) {
+        legs.push({ type: 'walk', from: lastStop, to: e.to, metres: walkingMetres(e.m), minutes: walkMin(e.m) });
+      }
       lastStop = e.to;
     } else if (e.type === 'board') {
       const pattern = index.patterns[e.p];
-      ride = { type: 'ride', pattern, route: index.route(pattern.route_id), fromPos: e.pos, toPos: e.pos, minutes: 0 };
+      ride = {
+        type: 'ride',
+        pattern,
+        route: index.route(pattern.route_id),
+        fromPos: e.pos,
+        toPos: e.pos + 1,
+        minutes: rideMin[e.p][e.pos],
+      };
       legs.push({ type: 'wait', at: pattern.stop_ids[e.pos], minutes: ASSUMPTIONS.waitMin });
     } else if (e.type === 'ride') {
       ride.minutes += rideMin[e.p][ride.toPos];
@@ -218,6 +231,7 @@ function toItinerary(index, edges, totalMin) {
     rides: rides.length,
     changes: Math.max(0, rides.length - 1),
     walkMetres: Math.round(legs.filter((l) => l.type === 'walk').reduce((sum, l) => sum + l.metres, 0)),
+    walkMinutes: legs.filter((l) => l.type === 'walk').reduce((sum, l) => sum + l.minutes, 0),
     key: rides.map((r) => `${r.route.id}/${r.pattern.direction}@${r.from}`).join('>'),
   };
 }
@@ -241,11 +255,12 @@ export function planTrip(index, from, to) {
   if (direct <= ASSUMPTIONS.maxWalkOnlyM) {
     const minutes = Math.round(walkMin(direct));
     const walk = {
-      legs: [{ type: 'walk', from: null, to: null, metres: direct, minutes: walkMin(direct) }],
+      legs: [{ type: 'walk', from: null, to: null, metres: walkingMetres(direct), minutes: walkMin(direct) }],
       minutes,
       rides: 0,
       changes: 0,
-      walkMetres: Math.round(direct),
+      walkMetres: Math.round(walkingMetres(direct)),
+      walkMinutes: walkMin(direct),
       key: 'walk',
       tags: ['walk'],
     };
