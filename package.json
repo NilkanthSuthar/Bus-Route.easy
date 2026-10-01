@@ -1,0 +1,21 @@
+{
+  "name": "bus-route-easy",
+  "private": true,
+  "version": "0.2.0",
+  "type": "module",
+  "scripts": {
+    "data": "python3 pipeline/build.py",
+    "dev": "vite",
+    "build": "npm run data && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:data": "python3 -m pytest -q pipeline/tests"
+  },
+  "devDependencies": {
+    "vite": "^8.3.2",
+    "vitest": "^5.0.3"
+  },
+  "dependencies": {
+    "leaflet": "^1.9.4"
+  }
+}
