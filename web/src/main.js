@@ -4,6 +4,7 @@ import { distanceM } from './lib/geo.js';
 import { createRecents } from './lib/recents.js';
 import { createTracker, shouldRefresh } from './lib/tracker.js';
 import { createMap } from './ui/map.js';
+import { createSheet } from './ui/sheet.js';
 import { planTrip } from './routing/planner.js';
 import {
   errorView,
@@ -41,22 +42,18 @@ let map;
 let depth = 0;
 let goingBack = false;
 
-function insets() {
-  if (mobile.matches) {
-    // Use the size the sheet is animating to, not its current height.
-    const sheet = panel.dataset.size === 'full' ? window.innerHeight - 56 : window.innerHeight * 0.48;
-    return { topLeft: [24, 24], bottomRight: [24, sheet + 24] };
-  }
-  return { topLeft: [panel.offsetWidth + 48, 24], bottomRight: [24, 24] };
-}
+const sheet = createSheet(panel, {
+  handle: document.getElementById('sheet-handle'),
+  dragArea: panel.querySelector('.panel-top'),
+  isActive: () => mobile.matches,
+  // Let the height animation finish before the map measures itself again.
+  onSettle: () => setTimeout(() => map?.invalidate(), 260),
+});
+const setSheet = (size) => mobile.matches && sheet.set(size);
 
-function setSheet(size) {
-  panel.dataset.size = size;
-  document.getElementById('sheet-handle').setAttribute(
-    'aria-label',
-    size === 'full' ? 'Collapse panel' : 'Expand panel',
-  );
-  setTimeout(() => map?.invalidate(), 260);
+function insets() {
+  if (mobile.matches) return { topLeft: [24, 24], bottomRight: [24, sheet.targetHeight() + 24] };
+  return { topLeft: [panel.offsetWidth + 48, 24], bottomRight: [24, 24] };
 }
 
 const located = () => state.located;
@@ -253,7 +250,7 @@ function bindEvents() {
     const link = e.target.closest('a[href^="#"]');
     if (link && (state.query || state.pick)) {
       endSearch();
-      if (mobile.matches) setSheet('peek');
+      setSheet('half');
       // Same hash means no hashchange event, so draw the view ourselves.
       if (link.getAttribute('href') === location.hash) render();
     }
@@ -263,7 +260,7 @@ function bindEvents() {
     state.query = searchInput.value.trim();
     render();
   });
-  searchInput.addEventListener('focus', () => mobile.matches && setSheet('full'));
+  searchInput.addEventListener('focus', () => setSheet('full'));
   searchInput.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
       endSearch();
@@ -272,9 +269,6 @@ function bindEvents() {
     }
   });
 
-  document.getElementById('sheet-handle').addEventListener('click', () =>
-    setSheet(panel.dataset.size === 'full' ? 'peek' : 'full'),
-  );
   locateBtn.addEventListener('click', locate);
 }
 

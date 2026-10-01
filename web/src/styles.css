@@ -586,24 +586,32 @@ button {
     right: 0;
     bottom: 0;
     width: auto;
-    height: 48vh;
+    height: 48vh; /* replaced by the sheet script with an exact height */
     border-radius: 22px 22px 0 0;
-    transition: height 0.25s ease;
+    transition: height 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
     padding-bottom: env(safe-area-inset-bottom);
   }
 
-  .panel[data-size='full'] {
-    height: calc(100% - 56px);
+  .panel.dragging {
+    transition: none;
+    user-select: none;
+  }
+
+  /* Drag surfaces: let the script handle vertical moves instead of scrolling. */
+  .sheet-handle,
+  .panel-top {
+    touch-action: none;
   }
 
   .sheet-handle {
     display: block;
     width: 100%;
-    height: 22px;
+    height: 26px;
     border: 0;
     background: transparent;
     position: relative;
     flex: none;
+    cursor: grab;
   }
 
   .sheet-handle::after {
@@ -627,7 +635,12 @@ button {
   }
 
   .fab {
-    bottom: calc(48vh + 14px);
+    bottom: calc(var(--sheet-h, 48vh) + 14px);
+    transition: bottom 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  .panel.dragging ~ .fab {
+    transition: none;
   }
 
   .panel[data-size='full'] ~ .fab {
