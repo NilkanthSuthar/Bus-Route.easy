@@ -21,6 +21,8 @@ We collaborated with local depot authorities and validated the idea with real us
 - ✅ Search for stops and line numbers
 - ✅ Full-screen map with every line drawn in its own colour
 - ✅ Works on phones (bottom sheet) and desktop, light and dark mode
+- ✅ Remembers recent trips and stops (in your browser only)
+- ✅ Installable to the home screen, and works offline after the first visit (map tiles still need a connection)
 - ✅ Trip planner: fastest route and fewest changes, with step-by-step directions on the map
 - 🔜 Live bus positions, once a GPS feed is available
 
@@ -101,6 +103,6 @@ Real buses don't always take the shortest path, so if you know the actual stop o
 1. ~~Clean foundation: Vite, CI, Pages deploy~~
 2. ~~Data pipeline with estimated stop order~~
 3. ~~Trip planner in the browser (fastest route and fewest changes)~~
-4. Recent searches, offline support
+4. ~~Recent searches, offline support~~
 5. Feedback and complaints
 6. Live tracking, if a GPS feed becomes available

@@ -240,3 +240,10 @@ async function start() {
 }
 
 start();
+
+// Offline support. Only in production builds, so dev always serves fresh files.
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch(() => {});
+  });
+}
