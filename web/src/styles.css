@@ -207,6 +207,7 @@ button {
 
 .badge {
   display: inline-grid;
+  white-space: nowrap;
   place-items: center;
   min-width: 52px;
   height: 40px;
@@ -610,4 +611,244 @@ button {
   .panel[data-size='full'] ~ .fab {
     display: none;
   }
+}
+
+/* ---------- Trip planner ---------- */
+
+.link {
+  color: var(--brand);
+  font-weight: 700;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.where-to {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 8px 12px 4px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: var(--brand);
+  color: var(--brand-ink);
+}
+
+.where-to .sub {
+  color: inherit;
+  opacity: 0.8;
+}
+
+.where-icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.18);
+  flex: none;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  padding: 6px 16px 4px;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 42px;
+  padding: 0 16px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  font-weight: 700;
+}
+
+.btn.primary {
+  flex: 1;
+  background: var(--brand);
+  color: var(--brand-ink);
+}
+
+.btn:hover {
+  filter: brightness(0.96);
+}
+
+.plan-head {
+  align-items: center;
+}
+
+.od {
+  flex: 1;
+  min-width: 0;
+  border-radius: 14px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.od-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+}
+
+.od-field + .od-field {
+  border-top: 1px solid var(--line);
+}
+
+.od-field:hover {
+  background: var(--line);
+}
+
+.od-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.od-text small {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-3);
+}
+
+.od-text span {
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.od-text .placeholder {
+  color: var(--ink-3);
+  font-weight: 500;
+}
+
+.od-dot,
+.step-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 3px solid var(--surface);
+  box-shadow: 0 0 0 1px var(--line);
+  flex: none;
+}
+
+.od-dot.from,
+.step-dot.from {
+  background: #2f7cf6;
+}
+
+.od-dot.to,
+.step-dot.to {
+  background: #e5484d;
+}
+
+.trip-card {
+  display: block;
+  margin: 0 12px 10px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+}
+
+.trip-card:hover {
+  background: var(--surface-2);
+}
+
+.trip-card.selected {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 1px var(--brand);
+}
+
+.trip-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.trip-chain {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.chev {
+  color: var(--ink-3);
+  font-weight: 700;
+}
+
+.walk-icon {
+  display: grid;
+  place-items: center;
+  color: var(--ink-2);
+}
+
+.trip-min {
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  white-space: nowrap;
+}
+
+.trip-min small {
+  margin-left: 2px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.steps {
+  list-style: none;
+  margin: 0;
+  padding: 0 16px;
+}
+
+.step {
+  position: relative;
+  display: flex;
+  gap: 12px;
+  padding: 10px 0;
+}
+
+.step + .step {
+  border-top: 1px solid var(--line);
+}
+
+.step > :first-child {
+  margin-top: 3px;
+}
+
+.step-icon {
+  display: grid;
+  place-items: center;
+  min-width: 44px;
+  flex: none;
+  color: var(--ink-2);
+  align-self: flex-start;
+}
+
+.step .step-dot {
+  margin: 4px 12px 0;
+}
+
+.step.ride {
+  box-shadow: inset 3px 0 0 var(--c);
+  padding-left: 8px;
+  margin-left: -8px;
+}
+
+.step .sub {
+  white-space: normal;
+}
+
+.place-icon.here {
+  color: #2f7cf6;
 }

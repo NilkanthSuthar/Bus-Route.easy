@@ -133,6 +133,55 @@ export function createMap(el, index, { onPlaceClick, insets }) {
     fit(L.latLng(latlng(place)).toBounds(1600), 16);
   }
 
+  /** Draws one planned trip: bus legs in line colours, walks dashed. */
+  function showTrip(trip, from, to) {
+    current = { kind: 'trip', trip, from, to };
+    drawNetwork(true);
+    focus.clearLayers();
+    const points = [latlng(from), latlng(to)];
+    let here = from;
+
+    for (const leg of trip?.legs ?? []) {
+      if (leg.type === 'walk') {
+        const target = leg.to ? index.stop(leg.to) : to;
+        L.polyline([latlng(here), latlng(target)], {
+          color: css('--ink-2'),
+          weight: 4,
+          dashArray: '2 8',
+          lineCap: 'round',
+          interactive: false,
+        }).addTo(focus);
+        here = target;
+      } else if (leg.type === 'ride') {
+        const ids = leg.pattern.stop_ids.slice(leg.fromPos, leg.toPos + 1);
+        const line = ids.map((id) => latlng(index.stop(id)));
+        points.push(...line);
+        L.polyline(line, { color: css('--surface'), weight: 11, interactive: false }).addTo(focus);
+        L.polyline(line, { color: leg.route.color, weight: 6, interactive: false }).addTo(focus);
+        ids.forEach((id, i) => {
+          const end = i === 0 || i === ids.length - 1;
+          stopDot(index.stop(id), index.placeOfStop(id), leg.route.color, end).addTo(focus);
+        });
+        here = index.stop(ids[ids.length - 1]);
+      }
+    }
+
+    endPin(from, '#2f7cf6').addTo(focus);
+    endPin(to, '#e5484d').addTo(focus);
+    fit(L.latLngBounds(points));
+  }
+
+  function endPin(point, color) {
+    return L.circleMarker(latlng(point), {
+      radius: 8,
+      color: '#fff',
+      weight: 3,
+      fillColor: color,
+      fillOpacity: 1,
+      interactive: false,
+    });
+  }
+
   function setUser(position) {
     const icon = L.divIcon({ className: '', html: '<div class="user-dot"></div>', iconSize: [18, 18] });
     if (userMarker) userMarker.setLatLng(latlng(position));
@@ -140,11 +189,12 @@ export function createMap(el, index, { onPlaceClick, insets }) {
   }
 
   function redraw() {
-    if (current.kind === 'pattern') showPattern(current.pattern, current.fromStopId);
+    if (current.kind === 'trip') showTrip(current.trip, current.from, current.to);
+    else if (current.kind === 'pattern') showPattern(current.pattern, current.fromStopId);
     else if (current.kind === 'place') showPlace(current.place);
     else drawNetwork(false);
   }
 
   drawNetwork(false);
-  return { overview, showPattern, showPlace, setUser, invalidate: () => map.invalidateSize() };
+  return { overview, showPattern, showPlace, showTrip, setUser, invalidate: () => map.invalidateSize() };
 }

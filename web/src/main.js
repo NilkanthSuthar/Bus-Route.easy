@@ -2,7 +2,16 @@ import './styles.css';
 import { loadData } from './data/index.js';
 import { distanceM } from './lib/geo.js';
 import { createMap } from './ui/map.js';
-import { errorView, homeView, lineView, placeView, searchView } from './ui/views.js';
+import { planTrip } from './routing/planner.js';
+import {
+  errorView,
+  homeView,
+  lineView,
+  placeView,
+  planHref,
+  planView,
+  searchView,
+} from './ui/views.js';
 
 // Vadodara City Bus Station: the default "here" until we know where the user is.
 const HUB = { lat: 22.310342, lon: 73.1823 };
@@ -18,6 +27,8 @@ const state = {
   origin: HUB,
   originLabel: 'Near City Bus Station',
   query: '',
+  // Set while choosing a trip's start or end from search: { field, fromId, toId }.
+  pick: null,
 };
 let index;
 let map;
@@ -26,7 +37,11 @@ let depth = 0;
 let goingBack = false;
 
 function insets() {
-  if (mobile.matches) return { topLeft: [24, 24], bottomRight: [24, panel.offsetHeight + 24] };
+  if (mobile.matches) {
+    // Use the size the sheet is animating to, not its current height.
+    const sheet = panel.dataset.size === 'full' ? window.innerHeight - 56 : window.innerHeight * 0.48;
+    return { topLeft: [24, 24], bottomRight: [24, sheet + 24] };
+  }
   return { topLeft: [panel.offsetWidth + 48, 24], bottomRight: [24, 24] };
 }
 
@@ -39,15 +54,63 @@ function setSheet(size) {
   setTimeout(() => map?.invalidate(), 260);
 }
 
-function render() {
-  const [, kind, ...args] = location.hash.replace(/^#\/?/, '#/').split('/').map(decodeURIComponent);
+const located = () => state.originLabel === 'Near you';
 
-  if (state.query) {
-    view.innerHTML = searchView(index, state.query, state.origin);
+/** Turns a planner id ('here' or a place id) into { id, name, lat, lon }. */
+function tripEnd(id) {
+  if (id === 'here') {
+    return { id, name: located() ? 'Your location' : 'City Bus Station', ...state.origin };
+  }
+  const place = id && index.place(id);
+  return place ? { id, name: place.name, lat: place.lat, lon: place.lon } : null;
+}
+
+function pickContext() {
+  const { field, fromId, toId } = state.pick;
+  return {
+    field,
+    allowHere: true,
+    hereLabel: located() ? 'Your location' : 'City Bus Station',
+    href: (id) => planHref(field === 'from' ? id : fromId, field === 'to' ? id : toId),
+    cancelHref: location.hash || '#/',
+  };
+}
+
+function startPick(field) {
+  const [, , fromId = '', toId = ''] = currentRoute();
+  state.pick = { field, fromId, toId };
+  searchInput.placeholder = field === 'from' ? 'Search for a start' : 'Search for a destination';
+  searchInput.focus();
+  render();
+}
+
+function endSearch() {
+  state.query = '';
+  state.pick = null;
+  searchInput.value = '';
+  searchInput.placeholder = 'Search stops or lines';
+}
+
+const currentRoute = () =>
+  location.hash.replace(/^#\/?/, '#/').split('/').map(decodeURIComponent);
+
+function render() {
+  const [, kind, ...args] = currentRoute();
+
+  if (state.query || state.pick) {
+    view.innerHTML = searchView(index, state.query, state.origin, state.pick && pickContext());
     return;
   }
 
-  if (kind === 'line') {
+  if (kind === 'plan') {
+    const from = tripEnd(args[0]);
+    const to = tripEnd(args[1]);
+    const options = from && to && from.id !== to.id ? planTrip(index, from, to) : [];
+    const selected = Math.min(Number(args[2]) || 0, Math.max(0, options.length - 1));
+    view.innerHTML = planView(index, { from, to, options, selected });
+    if (from && to) map.showTrip(options[selected], from, to);
+    else map.overview(from ?? to ?? state.origin);
+  } else if (kind === 'line') {
     const [routeId, direction, fromStopId] = args;
     const pattern = index.pattern(routeId, direction) ?? index.patternsOf(routeId)[0];
     if (!pattern) {
@@ -85,7 +148,8 @@ function locate() {
         state.originLabel = 'Near you';
         map.setUser(here);
       }
-      if (location.hash && location.hash !== '#/') location.hash = '#/';
+      const kind = currentRoute()[1];
+      if (kind && kind !== 'plan') location.hash = '#/';
       else render();
     },
     () => {
@@ -111,10 +175,16 @@ function bindEvents() {
       history.back();
       return;
     }
+    const pick = e.target.closest('[data-pick]');
+    if (pick) {
+      e.preventDefault();
+      startPick(pick.dataset.pick);
+      return;
+    }
     const link = e.target.closest('a[href^="#"]');
-    if (link && state.query) {
-      state.query = '';
-      searchInput.value = '';
+    if (link && (state.query || state.pick)) {
+      endSearch();
+      if (mobile.matches) setSheet('peek');
       // Same hash means no hashchange event, so draw the view ourselves.
       if (link.getAttribute('href') === location.hash) render();
     }
@@ -127,8 +197,7 @@ function bindEvents() {
   searchInput.addEventListener('focus', () => mobile.matches && setSheet('full'));
   searchInput.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
-      searchInput.value = '';
-      state.query = '';
+      endSearch();
       searchInput.blur();
       render();
     }

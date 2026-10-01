@@ -9,7 +9,7 @@ Vadodara's city buses have no easy way to answer "which bus do I take from here?
 
 We collaborated with local depot authorities and validated the idea with real user input. The project was recognized by the Municipal Corporation for its civic impact and praised by university evaluators for its usability and potential to scale.
 
-> **Note:** the source data lists which lines serve each stop, but not the order a bus visits them in. Stop order is estimated from the map (see [How stop order is estimated](#how-stop-order-is-estimated)) and is marked as estimated in the app. Timetables and live bus positions aren't available yet.
+> **Note:** the source data lists which lines serve each stop, but not the order a bus visits them in. Stop order is estimated from the map (see [How stop order is estimated](#how-stop-order-is-estimated)) and is marked as estimated in the app. Timetables and live bus positions aren't available yet, so trip times are estimates (~18 km/h buses, ~10 min wait per bus).
 
 ---
 
@@ -21,7 +21,7 @@ We collaborated with local depot authorities and validated the idea with real us
 - ✅ Search for stops and line numbers
 - ✅ Full-screen map with every line drawn in its own colour
 - ✅ Works on phones (bottom sheet) and desktop, light and dark mode
-- 🔜 Trip planner (fastest route and fewest changes)
+- ✅ Trip planner: fastest route and fewest changes, with step-by-step directions on the map
 - 🔜 Live bus positions, once a GPS feed is available
 
 ---
@@ -75,6 +75,7 @@ web/
   index.html
   src/data/       loads the JSON and builds lookups (places, departures, nearby)
   src/lib/        geo and search helpers
+  src/routing/    trip planner (Dijkstra over stops and line segments)
   src/ui/         map and panel views
 vadodara-bus-*/   raw GIS data (stops in both directions, depots)
 ```
@@ -97,7 +98,7 @@ Real buses don't always take the shortest path, so if you know the actual stop o
 
 1. ~~Clean foundation: Vite, CI, Pages deploy~~
 2. ~~Data pipeline with estimated stop order~~
-3. Trip planner in the browser (fastest route and fewest changes)
-4. Stop-to-stop directions on the map, recent searches, offline support
+3. ~~Trip planner in the browser (fastest route and fewest changes)~~
+4. Recent searches, offline support
 5. Feedback and complaints
 6. Live tracking, if a GPS feed becomes available
