@@ -1,9 +1,11 @@
 import './styles.css';
 import { loadData } from './data/index.js';
 import { distanceM } from './lib/geo.js';
+import { createGeocoder, parsePointId, pointId } from './lib/geocode.js';
 import { createRecents } from './lib/recents.js';
 import { createTracker, shouldRefresh } from './lib/tracker.js';
 import { createMap } from './ui/map.js';
+import { createSheet } from './ui/sheet.js';
 import { planTrip } from './routing/planner.js';
 import {
   errorView,
@@ -33,7 +35,12 @@ const state = {
   query: '',
   // Set while choosing a trip's start or end from search: { field, fromId, toId }.
   pick: null,
+  // Place search results for the current query.
+  geo: { query: '', status: 'idle', results: [] },
+  // True while waiting for a tap on the map to set a trip end.
+  pickingOnMap: false,
 };
+const geocoder = createGeocoder();
 const recents = createRecents();
 let index;
 let map;
@@ -41,22 +48,18 @@ let map;
 let depth = 0;
 let goingBack = false;
 
-function insets() {
-  if (mobile.matches) {
-    // Use the size the sheet is animating to, not its current height.
-    const sheet = panel.dataset.size === 'full' ? window.innerHeight - 56 : window.innerHeight * 0.48;
-    return { topLeft: [24, 24], bottomRight: [24, sheet + 24] };
-  }
-  return { topLeft: [panel.offsetWidth + 48, 24], bottomRight: [24, 24] };
-}
+const sheet = createSheet(panel, {
+  handle: document.getElementById('sheet-handle'),
+  dragArea: panel.querySelector('.panel-top'),
+  isActive: () => mobile.matches,
+  // Let the height animation finish before the map measures itself again.
+  onSettle: () => setTimeout(() => map?.invalidate(), 260),
+});
+const setSheet = (size) => mobile.matches && sheet.set(size);
 
-function setSheet(size) {
-  panel.dataset.size = size;
-  document.getElementById('sheet-handle').setAttribute(
-    'aria-label',
-    size === 'full' ? 'Collapse panel' : 'Expand panel',
-  );
-  setTimeout(() => map?.invalidate(), 260);
+function insets() {
+  if (mobile.matches) return { topLeft: [24, 24], bottomRight: [24, sheet.targetHeight() + 24] };
+  return { topLeft: [panel.offsetWidth + 48, 24], bottomRight: [24, 24] };
 }
 
 const located = () => state.located;
@@ -66,6 +69,8 @@ function tripEnd(id) {
   if (id === 'here') {
     return { id, name: located() ? 'Your location' : 'City Bus Station', ...state.origin };
   }
+  const point = parsePointId(id);
+  if (point) return point;
   const place = id && index.place(id);
   return place ? { id, name: place.name, lat: place.lat, lon: place.lon } : null;
 }
@@ -93,6 +98,7 @@ function startPick(field) {
 function endSearch() {
   state.query = '';
   state.pick = null;
+  state.geo = { query: '', status: 'idle', results: [] };
   searchInput.value = '';
   searchInput.placeholder = 'Search stops or lines';
 }
@@ -111,7 +117,8 @@ function render({ live = false } = {}) {
 
   if (state.query || state.pick) {
     if (live) return;
-    view.innerHTML = searchView(index, state.query, state.origin, state.pick && pickContext());
+    const geo = state.geo.query === state.query ? state.geo : { status: 'idle', results: [] };
+    view.innerHTML = searchView(index, state.query, state.origin, state.pick && pickContext(), geo);
     return;
   }
 
@@ -124,7 +131,7 @@ function render({ live = false } = {}) {
     view.innerHTML = planView(index, { from, to, options, selected });
     if (options.length && !live) {
       recents.addTrip(from.id, to.id);
-      for (const end of [from, to]) if (end.id !== 'here') recents.addPlace(end.id);
+      for (const end of [from, to]) if (index.place(end.id)) recents.addPlace(end.id);
     }
     if (from && to) map.showTrip(options[selected], from, to, { fit: !live });
     else if (!live) map.overview(from ?? to ?? state.origin);
@@ -230,6 +237,67 @@ function resumeTracking() {
     .catch(() => {});
 }
 
+// ---------- Places and dropped pins ----------
+
+let geoTimer = null;
+let geoAbort = null;
+
+/** Looks up places for `query` after a short pause in typing. */
+function searchPlaces(query) {
+  clearTimeout(geoTimer);
+  geoAbort?.abort();
+  if (query.length < 3) return;
+  geoTimer = setTimeout(async () => {
+    geoAbort = new AbortController();
+    state.geo = { query, status: 'loading', results: [] };
+    render();
+    try {
+      const results = await geocoder.search(query, { signal: geoAbort.signal });
+      if (state.query === query) state.geo = { query, status: 'done', results };
+    } catch (err) {
+      if (err.name === 'AbortError') return;
+      if (state.query === query) state.geo = { query, status: 'error', results: [] };
+    }
+    if (state.query === query) render();
+  }, 350);
+}
+
+const banner = document.getElementById('map-banner');
+
+function startMapPick() {
+  const pick = pickContext();
+  const field = pick.field;
+  endSearch();
+  searchInput.blur();
+  state.pickingOnMap = true;
+  setSheet('min');
+  document.getElementById('map-banner-text').textContent =
+    field === 'from' ? 'Tap the map to set the start' : 'Tap the map to set the destination';
+  banner.hidden = false;
+
+  const stop = map.pickPoint(async (point) => {
+    finish();
+    // Name the pin after what's there, but don't keep the user waiting long.
+    const name = await Promise.race([
+      geocoder.nameOf(point.lat, point.lon).catch(() => null),
+      new Promise((resolve) => setTimeout(() => resolve(null), 2500)),
+    ]);
+    setSheet('half');
+    location.hash = pick.href(pointId({ ...point, name: name ?? 'Dropped pin' }));
+  });
+
+  function finish() {
+    state.pickingOnMap = false;
+    banner.hidden = true;
+    stop();
+  }
+  document.getElementById('map-banner-cancel').onclick = () => {
+    finish();
+    setSheet('half');
+    render();
+  };
+}
+
 function bindEvents() {
   window.addEventListener('hashchange', () => {
     depth = goingBack ? Math.max(0, depth - 1) : depth + 1;
@@ -244,6 +312,12 @@ function bindEvents() {
       history.back();
       return;
     }
+    const mapPick = e.target.closest('[data-map-pick]');
+    if (mapPick) {
+      e.preventDefault();
+      startMapPick();
+      return;
+    }
     const pick = e.target.closest('[data-pick]');
     if (pick) {
       e.preventDefault();
@@ -253,7 +327,7 @@ function bindEvents() {
     const link = e.target.closest('a[href^="#"]');
     if (link && (state.query || state.pick)) {
       endSearch();
-      if (mobile.matches) setSheet('peek');
+      setSheet('half');
       // Same hash means no hashchange event, so draw the view ourselves.
       if (link.getAttribute('href') === location.hash) render();
     }
@@ -262,8 +336,9 @@ function bindEvents() {
   searchInput.addEventListener('input', () => {
     state.query = searchInput.value.trim();
     render();
+    searchPlaces(state.query);
   });
-  searchInput.addEventListener('focus', () => mobile.matches && setSheet('full'));
+  searchInput.addEventListener('focus', () => setSheet('full'));
   searchInput.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
       endSearch();
@@ -272,9 +347,6 @@ function bindEvents() {
     }
   });
 
-  document.getElementById('sheet-handle').addEventListener('click', () =>
-    setSheet(panel.dataset.size === 'full' ? 'peek' : 'full'),
-  );
   locateBtn.addEventListener('click', locate);
 }
 
@@ -288,6 +360,7 @@ async function start() {
   map = createMap(document.getElementById('map'), index, {
     insets,
     onPlaceClick: (place) => {
+      if (state.pickingOnMap) return; // the map click sets the point instead
       location.hash = `#/place/${encodeURIComponent(place.id)}`;
     },
   });

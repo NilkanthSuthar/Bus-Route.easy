@@ -25,6 +25,7 @@ We collaborated with local depot authorities and validated the idea with real us
 - ✅ Remembers recent trips and stops (in your browser only)
 - ✅ Installable to the home screen, and works offline after the first visit (map tiles still need a connection)
 - ✅ Trip planner: fastest route and fewest changes, with step-by-step directions on the map
+- ✅ Plan from or to anywhere: a stop, any place or address (search), a point on the map, or your location
 - 🔜 Live bus positions, once a GPS feed is available
 
 ---
@@ -35,6 +36,7 @@ We collaborated with local depot authorities and validated the idea with real us
 |---------------|-----------------------------------------------------|
 | Frontend      | Vanilla JavaScript, Vite                            |
 | Map           | Leaflet, OpenStreetMap tiles (no API key)           |
+| Place search  | Photon (OpenStreetMap geocoder, no API key)         |
 | Data pipeline | Python, pyshp                                       |
 | Data          | Vadodara bus stop and depot shapefiles → static JSON |
 | Tests         | Vitest, pytest                                      |
