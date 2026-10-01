@@ -1,6 +1,7 @@
 import './styles.css';
 import { loadData } from './data/index.js';
 import { distanceM } from './lib/geo.js';
+import { createRecents } from './lib/recents.js';
 import { createMap } from './ui/map.js';
 import { planTrip } from './routing/planner.js';
 import {
@@ -30,6 +31,7 @@ const state = {
   // Set while choosing a trip's start or end from search: { field, fromId, toId }.
   pick: null,
 };
+const recents = createRecents();
 let index;
 let map;
 // How many views deep we are, so Back can use browser history when it can.
@@ -71,6 +73,7 @@ function pickContext() {
     field,
     allowHere: true,
     hereLabel: located() ? 'Your location' : 'City Bus Station',
+    recent: recents.places().map((id) => index.place(id)).filter(Boolean),
     href: (id) => planHref(field === 'from' ? id : fromId, field === 'to' ? id : toId),
     cancelHref: location.hash || '#/',
   };
@@ -108,6 +111,10 @@ function render() {
     const options = from && to && from.id !== to.id ? planTrip(index, from, to) : [];
     const selected = Math.min(Number(args[2]) || 0, Math.max(0, options.length - 1));
     view.innerHTML = planView(index, { from, to, options, selected });
+    if (options.length) {
+      recents.addTrip(from.id, to.id);
+      for (const end of [from, to]) if (end.id !== 'here') recents.addPlace(end.id);
+    }
     if (from && to) map.showTrip(options[selected], from, to);
     else map.overview(from ?? to ?? state.origin);
   } else if (kind === 'line') {
@@ -126,9 +133,15 @@ function render() {
       return;
     }
     view.innerHTML = placeView(index, place, state.origin);
+    recents.addPlace(place.id);
     map.showPlace(place);
   } else {
-    view.innerHTML = homeView(index, state);
+    const recentTrips = recents
+      .trips()
+      .map((t) => ({ from: tripEnd(t.fromId), to: tripEnd(t.toId) }))
+      .filter((t) => t.from && t.to)
+      .slice(0, 3);
+    view.innerHTML = homeView(index, state, recentTrips);
     map.overview(state.origin);
   }
   view.scrollTop = 0;

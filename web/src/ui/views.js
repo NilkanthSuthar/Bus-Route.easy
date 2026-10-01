@@ -31,7 +31,8 @@ export const planHref = (fromId, toId, option) =>
 const ESTIMATE_NOTE = `<p class="note">Stop order is estimated from map data, so a line may not
   visit stops in exactly this order. Timetables aren't available yet.</p>`;
 
-export function homeView(index, { origin, originLabel }) {
+/** `recentTrips` is [{ from, to }] with resolved { id, name } ends. */
+export function homeView(index, { origin, originLabel }, recentTrips = []) {
   const lines = nearbyLines(index, origin);
   const places = nearbyPlaces(index, origin, 6);
 
@@ -62,6 +63,21 @@ export function homeView(index, { origin, originLabel }) {
         <span class="sub">Plan a trip by bus</span>
       </span>
     </a>
+    ${
+      recentTrips.length
+        ? `<h2 class="section-title">Recent trips</h2>${recentTrips
+            .map(
+              ({ from, to }) => `<a class="row" href="${planHref(from.id, to.id)}">
+                <span class="place-icon">${ICONS.directions}</span>
+                <span class="dir-text">
+                  <span class="headsign">${esc(to.name)}</span>
+                  <span class="sub">from ${esc(from.name)}</span>
+                </span>
+              </a>`,
+            )
+            .join('')}`
+        : ''
+    }
     <h2 class="section-title">Lines nearby <small>${esc(originLabel)}</small></h2>
     ${cards || '<p class="empty">No lines within a short walk. Try searching for a stop.</p>'}
     <h2 class="section-title">Stops nearby</h2>
@@ -122,7 +138,12 @@ function pickSuggestions(index, origin, pick) {
     <h2 class="section-title">${pick.field === 'from' ? 'Choose a start' : 'Choose a destination'}
       <a class="link" href="${pick.cancelHref}">Cancel</a></h2>
     ${here}
+    ${pick.recent
+      .map((place) => placeRow(index, place, distanceM(origin, place), pick.href(place.id)))
+      .join('')}
+    ${pick.recent.length ? '<h2 class="section-title">Nearby</h2>' : ''}
     ${nearbyPlaces(index, origin, 8)
+      .filter(({ place }) => !pick.recent.includes(place))
       .map(({ place, distance }) => placeRow(index, place, distance, pick.href(place.id)))
       .join('')}`;
 }
