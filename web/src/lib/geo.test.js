@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { distanceM, formatDistance, walkMinutes } from './geo.js';
+import { distanceM, formatDistance, walkMinutes, walkingMetres } from './geo.js';
 
 describe('distanceM', () => {
   it('is zero for the same point', () => {
@@ -24,9 +24,16 @@ describe('formatDistance', () => {
   });
 });
 
-describe('walkMinutes', () => {
+describe('walking estimates', () => {
+  it('adds a detour on top of the straight line', () => {
+    expect(walkingMetres(1000)).toBe(1300);
+  });
+
+  it('turns distance into minutes at a normal pace', () => {
+    expect(walkMinutes(400)).toBe(7); // 520 m walked at 80 m/min
+  });
+
   it('never says zero minutes', () => {
     expect(walkMinutes(5)).toBe(1);
-    expect(walkMinutes(400)).toBe(5);
   });
 });

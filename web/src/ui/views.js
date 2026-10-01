@@ -1,5 +1,5 @@
 import { nearbyLines, nearbyPlaces } from '../data/index.js';
-import { distanceM, formatDistance, walkMinutes } from '../lib/geo.js';
+import { distanceM, formatDistance, walkMinutes, walkingMetres } from '../lib/geo.js';
 import { search } from '../lib/search.js';
 import { ASSUMPTIONS } from '../routing/planner.js';
 
@@ -97,7 +97,7 @@ function placeRow(index, place, distance, href = placeHref(place)) {
         routes.length > MAX_BADGES ? `<span class="chip">+${routes.length - MAX_BADGES}</span>` : ''
       }</span>
     </span>
-    ${distance != null ? `<span class="sub">${formatDistance(distance)}</span>` : ''}
+    ${distance != null ? `<span class="walk-dist"><strong>${walkMinutes(distance)} min</strong><small>${formatDistance(walkingMetres(distance))}</small></span>` : ''}
   </a>`;
 }
 
@@ -148,7 +148,8 @@ function pickSuggestions(index, origin, pick) {
       .join('')}`;
 }
 
-export function lineView(index, pattern, fromStopId) {
+/** `user` is the live position, or null; the line's closest stop gets a walking time. */
+export function lineView(index, pattern, fromStopId, user) {
   const route = index.route(pattern.route_id);
   const other = index.patternsOf(route.id).find((p) => p !== pattern);
   const fromIndex = fromStopId ? pattern.stop_ids.indexOf(fromStopId) : -1;
@@ -157,12 +158,18 @@ export function lineView(index, pattern, fromStopId) {
       ? other.stop_ids.find((id) => index.placeOfStop(id) === index.placeOfStop(fromStopId))
       : undefined;
 
+  const nearest = user ? nearestStop(index, pattern, user) : null;
+
   const stops = pattern.stop_ids
     .map((id, i) => {
       const place = index.placeOfStop(id);
       const cls = i === fromIndex ? 'current' : fromIndex > -1 && i < fromIndex ? 'passed' : '';
+      const near =
+        nearest?.id === id
+          ? `<span class="near-you">${walkMinutes(nearest.distance)} min walk</span>`
+          : '';
       return `<li class="${cls}"><a href="${placeHref(place)}">
-        <span class="dot"></span><span class="name">${esc(place.name)}</span>
+        <span class="dot"></span><span class="name">${esc(place.name)}</span>${near}
       </a></li>`;
     })
     .join('');
@@ -189,7 +196,19 @@ export function lineView(index, pattern, fromStopId) {
     ${ESTIMATE_NOTE}`;
 }
 
-export function placeView(index, place, origin) {
+const NEAR_LINE_M = 2000;
+
+/** The stop on this pattern closest to `point`, if one is within walking range. */
+function nearestStop(index, pattern, point) {
+  let best = null;
+  for (const id of pattern.stop_ids) {
+    const distance = distanceM(point, index.stop(id));
+    if (!best || distance < best.distance) best = { id, distance };
+  }
+  return best && best.distance <= NEAR_LINE_M ? best : null;
+}
+
+export function placeView(index, place, origin, located) {
   const departures = index
     .departuresAt(place)
     .sort((a, b) =>
@@ -229,7 +248,12 @@ export function placeView(index, place, origin) {
       </div>
     </div>
     <div class="detail-meta">
-      <span class="chip">${formatDistance(distanceM(origin, place))} away</span>
+      ${(() => {
+        const d = distanceM(origin, place);
+        return located
+          ? `<span class="chip strong">${walkMinutes(d)} min walk · ${formatDistance(walkingMetres(d))}</span>`
+          : `<span class="chip">${formatDistance(d)} from City Bus Station</span>`;
+      })()}
       <span class="chip">${place.routes.length} line${place.routes.length === 1 ? '' : 's'}</span>
     </div>
     <div class="actions">
@@ -288,7 +312,7 @@ export function planView(index, { from, to, options, selected }) {
       const facts = [
         o.tags.map((t) => TAG_LABELS[t]).join(' · '),
         o.rides ? (o.changes ? `${o.changes} change${o.changes > 1 ? 's' : ''}` : 'No changes') : null,
-        o.walkMetres >= 50 ? `${mins(o.walkMetres / ASSUMPTIONS.walkMetresPerMin)} walk` : null,
+        o.walkMetres >= 50 ? `${mins(o.walkMinutes)} walk` : null,
         firstRide ? `from ${index.placeOfStop(firstRide.from).name}` : formatDistance(o.walkMetres),
       ].filter(Boolean);
       return `<a class="trip-card ${i === selected ? 'selected' : ''}" href="${planHref(from.id, to.id, i)}">

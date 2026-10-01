@@ -2,6 +2,7 @@ import './styles.css';
 import { loadData } from './data/index.js';
 import { distanceM } from './lib/geo.js';
 import { createRecents } from './lib/recents.js';
+import { createTracker, shouldRefresh } from './lib/tracker.js';
 import { createMap } from './ui/map.js';
 import { planTrip } from './routing/planner.js';
 import {
@@ -26,6 +27,8 @@ const mobile = window.matchMedia('(max-width: 720px)');
 
 const state = {
   origin: HUB,
+  // True while we have a live GPS fix inside the city.
+  located: false,
   originLabel: 'Near City Bus Station',
   query: '',
   // Set while choosing a trip's start or end from search: { field, fromId, toId }.
@@ -56,7 +59,7 @@ function setSheet(size) {
   setTimeout(() => map?.invalidate(), 260);
 }
 
-const located = () => state.originLabel === 'Near you';
+const located = () => state.located;
 
 /** Turns a planner id ('here' or a place id) into { id, name, lat, lon }. */
 function tripEnd(id) {
@@ -97,26 +100,34 @@ function endSearch() {
 const currentRoute = () =>
   location.hash.replace(/^#\/?/, '#/').split('/').map(decodeURIComponent);
 
-function render() {
+/**
+ * Draws the current screen. A `live` render comes from a GPS update: it
+ * refreshes distances and walking times but leaves the map view and the
+ * scroll position alone.
+ */
+function render({ live = false } = {}) {
   const [, kind, ...args] = currentRoute();
+  const scroll = view.scrollTop;
 
   if (state.query || state.pick) {
+    if (live) return;
     view.innerHTML = searchView(index, state.query, state.origin, state.pick && pickContext());
     return;
   }
 
   if (kind === 'plan') {
+    if (live && args[0] !== 'here' && args[1] !== 'here') return;
     const from = tripEnd(args[0]);
     const to = tripEnd(args[1]);
     const options = from && to && from.id !== to.id ? planTrip(index, from, to) : [];
     const selected = Math.min(Number(args[2]) || 0, Math.max(0, options.length - 1));
     view.innerHTML = planView(index, { from, to, options, selected });
-    if (options.length) {
+    if (options.length && !live) {
       recents.addTrip(from.id, to.id);
       for (const end of [from, to]) if (end.id !== 'here') recents.addPlace(end.id);
     }
-    if (from && to) map.showTrip(options[selected], from, to);
-    else map.overview(from ?? to ?? state.origin);
+    if (from && to) map.showTrip(options[selected], from, to, { fit: !live });
+    else if (!live) map.overview(from ?? to ?? state.origin);
   } else if (kind === 'line') {
     const [routeId, direction, fromStopId] = args;
     const pattern = index.pattern(routeId, direction) ?? index.patternsOf(routeId)[0];
@@ -124,17 +135,19 @@ function render() {
       view.innerHTML = errorView(`Line ${routeId} isn't in the data.`);
       return;
     }
-    view.innerHTML = lineView(index, pattern, fromStopId);
-    map.showPattern(pattern, fromStopId);
+    view.innerHTML = lineView(index, pattern, fromStopId, located() ? state.origin : null);
+    if (!live) map.showPattern(pattern, fromStopId);
   } else if (kind === 'place') {
     const place = index.place(args[0]);
     if (!place) {
       view.innerHTML = errorView("That stop isn't in the data.");
       return;
     }
-    view.innerHTML = placeView(index, place, state.origin);
-    recents.addPlace(place.id);
-    map.showPlace(place);
+    view.innerHTML = placeView(index, place, state.origin, located());
+    if (!live) {
+      recents.addPlace(place.id);
+      map.showPlace(place);
+    }
   } else {
     const recentTrips = recents
       .trips()
@@ -142,36 +155,79 @@ function render() {
       .filter((t) => t.from && t.to)
       .slice(0, 3);
     view.innerHTML = homeView(index, state, recentTrips);
-    map.overview(state.origin);
+    if (!live) map.overview(state.origin);
   }
-  view.scrollTop = 0;
+  view.scrollTop = live ? scroll : 0;
 }
 
+// ---------- Live location ----------
+
+let lastRendered = null; // position the screen was last drawn for
+let centerOnNextFix = false;
+
+function onPosition(pos) {
+  locateBtn.removeAttribute('aria-busy');
+  locateBtn.setAttribute('aria-pressed', 'true');
+
+  if (distanceM(pos, HUB) > CITY_RADIUS_M) {
+    if (state.located || !lastRendered) {
+      Object.assign(state, {
+        located: false,
+        origin: HUB,
+        originLabel: "You're outside Vadodara · showing City Bus Station",
+      });
+      lastRendered = HUB;
+      map.setUser(null);
+      render({ live: true });
+    }
+    return;
+  }
+
+  Object.assign(state, { located: true, origin: pos, originLabel: 'Near you' });
+  map.setUser(pos, pos.accuracy);
+  if (centerOnNextFix) {
+    centerOnNextFix = false;
+    map.centerOn(pos);
+  }
+  if (shouldRefresh(lastRendered, pos)) {
+    lastRendered = pos;
+    render({ live: true });
+  }
+}
+
+function onLocationError(err) {
+  locateBtn.removeAttribute('aria-busy');
+  if (err.code !== 1) return; // weak signal or timeout: keep trying quietly
+  locateBtn.setAttribute('aria-pressed', 'false');
+  Object.assign(state, {
+    located: false,
+    origin: HUB,
+    originLabel: 'Location off · showing City Bus Station',
+  });
+  lastRendered = null;
+  map.setUser(null);
+  render({ live: true });
+}
+
+const tracker = createTracker({ onPosition, onError: onLocationError });
+
 function locate() {
-  if (!navigator.geolocation) return;
+  if (!tracker.supported) return;
+  if (tracker.active && state.located) {
+    map.centerOn(state.origin);
+    return;
+  }
   locateBtn.setAttribute('aria-busy', 'true');
-  navigator.geolocation.getCurrentPosition(
-    ({ coords }) => {
-      locateBtn.removeAttribute('aria-busy');
-      const here = { lat: coords.latitude, lon: coords.longitude };
-      if (distanceM(here, HUB) > CITY_RADIUS_M) {
-        state.originLabel = "You're outside Vadodara · showing City Bus Station";
-      } else {
-        state.origin = here;
-        state.originLabel = 'Near you';
-        map.setUser(here);
-      }
-      const kind = currentRoute()[1];
-      if (kind && kind !== 'plan') location.hash = '#/';
-      else render();
-    },
-    () => {
-      locateBtn.removeAttribute('aria-busy');
-      state.originLabel = 'Location off · showing City Bus Station';
-      render();
-    },
-    { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
-  );
+  centerOnNextFix = true;
+  tracker.start();
+}
+
+// Start following straight away if location was allowed on an earlier visit.
+function resumeTracking() {
+  navigator.permissions
+    ?.query({ name: 'geolocation' })
+    .then((status) => status.state === 'granted' && tracker.start())
+    .catch(() => {});
 }
 
 function bindEvents() {
@@ -237,6 +293,7 @@ async function start() {
   });
   bindEvents();
   render();
+  resumeTracking();
 }
 
 start();

@@ -9,13 +9,14 @@ Vadodara's city buses have no easy way to answer "which bus do I take from here?
 
 We collaborated with local depot authorities and validated the idea with real user input. The project was recognized by the Municipal Corporation for its civic impact and praised by university evaluators for its usability and potential to scale.
 
-> **Note:** the source data lists which lines serve each stop, but not the order a bus visits them in. Stop order is estimated from the map (see [How stop order is estimated](#how-stop-order-is-estimated)) and is marked as estimated in the app. Timetables and live bus positions aren't available yet, so trip times are estimates (~18 km/h buses, ~10 min wait per bus).
+> **Note:** the source data lists which lines serve each stop, but not the order a bus visits them in. Stop order is estimated from the map (see [How stop order is estimated](#how-stop-order-is-estimated)) and is marked as estimated in the app. Timetables and live bus positions aren't available yet, so trip times are estimates (~18 km/h buses, ~10 min wait per bus, walking at ~4.8 km/h with 30% added for street detours).
 
 ---
 
 ## 💡 Features
 
-- ✅ Lines near you, with walking time to the closest stop
+- ✅ Live GPS location: nearby lines, walking times and directions update as you move
+- ✅ Lines near you, with walking time and distance to the closest stop
 - ✅ Line pages with every stop on a timeline, in both directions
 - ✅ Stop pages with all departing lines and stops a short walk away
 - ✅ Search for stops and line numbers

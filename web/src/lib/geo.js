@@ -15,7 +15,20 @@ export function formatDistance(m) {
   return `${(m / 1000).toFixed(m < 10000 ? 1 : 0)} km`;
 }
 
-// About 80 m a minute at a normal walking pace.
-export function walkMinutes(m) {
-  return Math.max(1, Math.round(m / 80));
+// Streets are never a straight line: walking routes in a city are typically
+// 20-40% longer than the crow flies, so straight distances are scaled up.
+export const WALK = {
+  metresPerMin: 80, // ~4.8 km/h, a normal walking pace
+  detour: 1.3,
+};
+
+/** Estimated walking distance for a straight-line distance. */
+export const walkingMetres = (straightM) => straightM * WALK.detour;
+
+/** Estimated walking time in (fractional) minutes for a straight-line distance. */
+export const walkingMin = (straightM) => walkingMetres(straightM) / WALK.metresPerMin;
+
+/** Whole minutes for display; never says zero. */
+export function walkMinutes(straightM) {
+  return Math.max(1, Math.round(walkingMin(straightM)));
 }

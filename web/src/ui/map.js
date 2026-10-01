@@ -35,6 +35,7 @@ export function createMap(el, index, { onPlaceClick, insets }) {
   const network = L.layerGroup().addTo(map);
   const focus = L.layerGroup().addTo(map);
   let userMarker = null;
+  let accuracyCircle = null;
   let current = { kind: 'overview' };
 
   const patternLine = (p) => p.stop_ids.map((id) => latlng(index.stop(id)));
@@ -132,7 +133,7 @@ export function createMap(el, index, { onPlaceClick, insets }) {
   }
 
   /** Draws one planned trip: bus legs in line colours, walks dashed. */
-  function showTrip(trip, from, to) {
+  function showTrip(trip, from, to, { fit: refit = true } = {}) {
     current = { kind: 'trip', trip, from, to };
     drawNetwork(true);
     focus.clearLayers();
@@ -166,7 +167,7 @@ export function createMap(el, index, { onPlaceClick, insets }) {
 
     endPin(from, '#2f7cf6').addTo(focus);
     endPin(to, '#e5484d').addTo(focus);
-    fit(L.latLngBounds(points));
+    if (refit) fit(L.latLngBounds(points));
   }
 
   function endPin(point, color) {
@@ -180,19 +181,42 @@ export function createMap(el, index, { onPlaceClick, insets }) {
     });
   }
 
-  function setUser(position) {
-    const icon = L.divIcon({ className: '', html: '<div class="user-dot"></div>', iconSize: [18, 18] });
-    if (userMarker) userMarker.setLatLng(latlng(position));
-    else userMarker = L.marker(latlng(position), { icon, interactive: false, zIndexOffset: 1000 }).addTo(map);
+  /** Moves the blue dot, or removes it when `position` is null. */
+  function setUser(position, accuracy) {
+    if (!position) {
+      userMarker?.remove();
+      accuracyCircle?.remove();
+      userMarker = accuracyCircle = null;
+      return;
+    }
+    if (!userMarker) {
+      const icon = L.divIcon({ className: '', html: '<div class="user-dot"></div>', iconSize: [18, 18] });
+      accuracyCircle = L.circle(latlng(position), {
+        radius: 0,
+        color: '#2f7cf6',
+        weight: 1,
+        opacity: 0.4,
+        fillColor: '#2f7cf6',
+        fillOpacity: 0.1,
+        interactive: false,
+      }).addTo(map);
+      userMarker = L.marker(latlng(position), { icon, interactive: false, zIndexOffset: 1000 }).addTo(map);
+    }
+    userMarker.setLatLng(latlng(position));
+    accuracyCircle.setLatLng(latlng(position)).setRadius(Math.min(accuracy ?? 0, 500));
+  }
+
+  function centerOn(position) {
+    fit(L.latLng(latlng(position)).toBounds(900), 16);
   }
 
   function redraw() {
-    if (current.kind === 'trip') showTrip(current.trip, current.from, current.to);
+    if (current.kind === 'trip') showTrip(current.trip, current.from, current.to, { fit: false });
     else if (current.kind === 'pattern') showPattern(current.pattern, current.fromStopId);
     else if (current.kind === 'place') showPlace(current.place);
     else drawNetwork(false);
   }
 
   drawNetwork(false);
-  return { overview, showPattern, showPlace, showTrip, setUser, invalidate: () => map.invalidateSize() };
+  return { overview, showPattern, showPlace, showTrip, setUser, centerOn, invalidate: () => map.invalidateSize() };
 }
