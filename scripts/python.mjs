@@ -3,7 +3,16 @@
 import { spawnSync } from 'node:child_process';
 
 const candidates = ['python3', 'python', 'py'];
-const works = (cmd) => spawnSync(cmd, ['--version'], { stdio: 'ignore' }).status === 0;
+
+// Actually run some Python and check the answer. On Windows, `python` and
+// `python3` can be Microsoft Store placeholders that exist but aren't Python.
+const works = (cmd) => {
+  const r = spawnSync(cmd, ['-c', 'import sys; print(sys.version_info >= (3, 10))'], {
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'ignore'],
+  });
+  return r.status === 0 && r.stdout?.trim() === 'True';
+};
 const python = candidates.find(works);
 
 if (!python) {
