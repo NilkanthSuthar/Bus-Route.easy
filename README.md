@@ -84,8 +84,6 @@ web/
 vadodara-bus-*/   raw GIS data (stops in both directions, depots)
 ```
 
-The `html/`, `css/`, `js/`, `store/` and `Backend/` folders are the original hackathon prototype and aren't used by the new app.
-
 ### How stop order is estimated
 
 Every line starts or ends at the city bus station, so for each line and direction the pipeline:
