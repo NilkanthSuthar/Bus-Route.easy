@@ -55,6 +55,14 @@ npm run data   # builds web/public/data/*.json from the shapefiles
 npm run dev    # http://localhost:5173
 ```
 
+**Road shapes:** to draw lines along the real streets instead of straight lines between stops, run this once with an internet connection and commit the result:
+
+```bash
+npm run shapes   # fetches road paths from the public OSRM server into pipeline/shapes.json (~1 min)
+```
+
+It only fetches stop pairs it doesn't have yet. Any stretch where the road route looks wrong (a big detour, or a stop far from a road) stays a straight line. Real road lengths also make the trip times more accurate.
+
 Other commands:
 
 ```bash
@@ -73,6 +81,7 @@ Pushing to `master` runs the tests and deploys `dist/` to GitHub Pages (set **Se
 pipeline/         Python: shapefiles -> JSON
   build.py        reads stops, routes and depots, writes web/public/data/
   ordering.py     estimates stop order for each line
+  shapes.py       fetches road shapes between stops (OSRM) into shapes.json
   validate.py     sanity checks (fails the build on bad data)
 web/
   index.html

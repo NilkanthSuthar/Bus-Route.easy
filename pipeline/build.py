@@ -25,6 +25,7 @@ RAW = {
     "in": ROOT / "vadodara-bus-stop_up" / "Vadodara - Bus Stop_Up",
 }
 DEPOTS = ROOT / "vadodara-bus-depot" / "Vadodara - Bus Depot"
+SHAPES = Path(__file__).resolve().parent / "shapes.json"
 
 # Stops closer than this (metres) are treated as an easy walking transfer.
 TRANSFER_RADIUS_M = 300
@@ -126,7 +127,30 @@ def drop_outliers(group, label, log):
     return kept
 
 
-def build(out_dir, log=print):
+def load_shapes(path=SHAPES):
+    if not path.exists():
+        return {}
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def attach_shapes(pattern, shapes):
+    """Adds road shapes and distances from shapes.py, where it has them.
+
+    `segments[i]` is the road path from stop i to stop i+1 and `segment_m[i]`
+    its length. Either is null when there's no usable road shape, and the app
+    falls back to a straight line for that stretch.
+    """
+    ids = pattern["stop_ids"]
+    found = [shapes.get(f"{a}>{b}") for a, b in zip(ids, ids[1:])]
+    if not any(f and f.get("path") for f in found):
+        return 0
+    pattern["segments"] = [f["path"] if f else None for f in found]
+    pattern["segment_m"] = [f["m"] if f else None for f in found]
+    return sum(1 for f in found if f and f.get("path"))
+
+
+def build(out_dir, log=print, shapes=None):
+    shapes = load_shapes() if shapes is None else shapes
     stops = load_stops()
     names = route_names(stops)
 
@@ -167,6 +191,10 @@ def build(out_dir, log=print):
             "color": PALETTE[index % len(PALETTE)],
             "directions": dirs,
         })
+
+    shaped = sum(attach_shapes(p, shapes) for p in patterns)
+    total = sum(len(p["stop_ids"]) - 1 for p in patterns)
+    log(f"road shapes: {shaped}/{total} segments" + ("" if shaped else " (run `npm run shapes` to add them)"))
 
     kept = {r["id"] for r in routes}
     stop_routes = defaultdict(set)

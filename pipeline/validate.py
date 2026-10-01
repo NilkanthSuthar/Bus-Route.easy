@@ -31,6 +31,9 @@ def validate(data):
         if missing:
             errors.append(f"{label}: unknown stops {missing}")
             continue
+        for key in ("segments", "segment_m"):
+            if key in p and len(p[key]) != len(p["stop_ids"]) - 1:
+                errors.append(f"{label}: {key} doesn't match the stops")
         seq = [stops[sid] for sid in p["stop_ids"]]
         for a, b in zip(seq, seq[1:]):
             gap = haversine_m(a["lat"], a["lon"], b["lat"], b["lon"])

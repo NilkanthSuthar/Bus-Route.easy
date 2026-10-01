@@ -8,6 +8,7 @@
   },
   "scripts": {
     "data": "node scripts/python.mjs pipeline/build.py",
+    "shapes": "npm run data && node scripts/python.mjs pipeline/shapes.py && npm run data",
     "dev": "vite",
     "build": "npm run data && vite build",
     "preview": "vite preview",

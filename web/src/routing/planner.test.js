@@ -107,3 +107,30 @@ describe('fastest vs fewest changes', () => {
     expect(fewest.minutes).toBeGreaterThan(options.find((o) => o.tags.includes('fastest')).minutes);
   });
 });
+
+describe('road distances', () => {
+  const net = (segment_m) => ({
+    stops: [
+      { id: 'a', name: 'A', lat: 22.3, lon: 73.1, routes: [] },
+      { id: 'b', name: 'B', lat: 22.3, lon: 73.13, routes: [] },
+    ],
+    routes: [{ id: 'R', name: 'R', color: '#000', directions: ['out'] }],
+    route_stops: [{ route_id: 'R', direction: 'out', headsign: 'B', stop_ids: ['a', 'b'], segment_m }],
+    transfers: [],
+    depots: [],
+  });
+  const rideMinutes = (data) => {
+    const idx = buildIndex(data);
+    const [trip] = planTrip(idx, idx.placeOfStop('a'), idx.placeOfStop('b'));
+    return rides(trip)[0].minutes;
+  };
+
+  it('uses the road length when the data has one', () => {
+    expect(rideMinutes(net([9000]))).toBeCloseTo(9000 / 300 + 0.5, 5);
+  });
+
+  it('allows for a longer road when it only has the straight line', () => {
+    // ~3.1 km straight, so ~4 km by road.
+    expect(rideMinutes(net(undefined))).toBeGreaterThan(13);
+  });
+});

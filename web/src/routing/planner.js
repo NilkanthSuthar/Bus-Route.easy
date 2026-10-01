@@ -3,6 +3,7 @@ import { distanceM, walkingMetres, walkingMin as walkMin } from '../lib/geo.js';
 // There are no timetables, so every time here is an estimate.
 export const ASSUMPTIONS = {
   busMetresPerMin: 300, // ~18 km/h average city bus speed, stops included
+  roadDetour: 1.3, // road vs straight-line distance, when there's no road shape
   dwellMin: 0.5, // time spent at each intermediate stop
   waitMin: 10, // average wait for a bus (half of a ~20 min gap between buses)
   maxAccessWalkM: 800, // walk to the first stop
@@ -73,9 +74,10 @@ function graphFor(index) {
       list.push({ p, pos });
       boardings.set(id, list);
     });
-    return stops
-      .slice(1)
-      .map((s, i) => distanceM(stops[i], s) / ASSUMPTIONS.busMetresPerMin + ASSUMPTIONS.dwellMin);
+    return stops.slice(1).map((s, i) => {
+      const roadM = pattern.segment_m?.[i] ?? distanceM(stops[i], s) * ASSUMPTIONS.roadDetour;
+      return roadM / ASSUMPTIONS.busMetresPerMin + ASSUMPTIONS.dwellMin;
+    });
   });
 
   const walks = new Map(); // stopId -> [{ to, m }]
