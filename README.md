@@ -1,116 +1,109 @@
-# 🚍 Bus-Route.easy
+# Bus-Route.easy
 
-**A city bus app for Vadodara, started at Smart India Hackathon 2023 (Top 6/500 finalist).**
-Find the bus lines near you, see every stop a line makes, and check which lines leave from any stop, all on a map.
+A map-based web app for Vadodara's city buses: find lines near you, browse lines and stops, and plan trips. Started at Smart India Hackathon 2023 (finalist, top 6 of 500).
 
-## 📌 Overview
+**Live:** https://nilkanthsuthar.github.io/Bus-Route.easy/
 
-Vadodara's city buses have no easy way to answer "which bus do I take from here?". This app puts the city's 23 bus lines and 250+ stops on a map so commuters can find nearby lines, follow a line stop by stop, and see what serves any stop.
+## Features
 
-We collaborated with local depot authorities and validated the idea with real user input. The project was recognized by the Municipal Corporation for its civic impact and praised by university evaluators for its usability and potential to scale.
+- **Nearby lines** with walking time to the closest stop, updated live from GPS
+- **Line pages**: every stop on a timeline, both directions, drawn along the roads
+- **Stop pages**: departing lines and stops a short walk away
+- **Trip planner**: fastest and fewest-changes options with step-by-step directions. Start and end can be a stop, any place or address, a point on the map, or your location
+- **Search** for stops, line numbers, places and addresses
+- **Phone-friendly**: draggable bottom sheet, installable to the home screen, works offline after the first visit (map tiles and place search need a connection)
+- Light and dark mode; recent trips and stops are remembered in the browser
 
-> **Note:** the source data lists which lines serve each stop, but not the order a bus visits them in. Stop order is estimated from the map (see [How stop order is estimated](#how-stop-order-is-estimated)) and is marked as estimated in the app. Timetables and live bus positions aren't available yet, so trip times are estimates (~18 km/h buses, ~10 min wait per bus, walking at ~4.8 km/h with 30% added for street detours).
+## Limitations
 
----
+- **Stop order is estimated.** The source data lists which lines serve each stop, not the order they visit them. See [How stop order is estimated](#how-stop-order-is-estimated).
+- **Times are estimates.** There are no timetables or live bus positions. The planner assumes buses average 18 km/h, a 10-minute wait per bus, and walking at 4.8 km/h, with straight-line distances scaled by 1.3 for street detours.
+- **Walking limits.** Trips walk at most 800 m to the first stop or from the last, and 400 m between stops when changing buses.
+- **Coverage**: 23 lines and about 250 stops. Three lines in the source data (14A, 18C, 30C) have only one stop each and are left out.
 
-## 💡 Features
+## Running locally
 
-- ✅ Live GPS location: nearby lines, walking times and directions update as you move
-- ✅ Lines near you, with walking time and distance to the closest stop
-- ✅ Line pages with every stop on a timeline, in both directions
-- ✅ Stop pages with all departing lines and stops a short walk away
-- ✅ Search for stops and line numbers
-- ✅ Full-screen map with every line drawn in its own colour
-- ✅ Works on phones (bottom sheet) and desktop, light and dark mode
-- ✅ Remembers recent trips and stops (in your browser only)
-- ✅ Installable to the home screen, and works offline after the first visit (map tiles still need a connection)
-- ✅ Trip planner: fastest route and fewest changes, with step-by-step directions on the map
-- ✅ Plan from or to anywhere: a stop, any place or address (search), a point on the map, or your location
-- 🔜 Live bus positions, once a GPS feed is available
-
----
-
-## 🛠 Tech Stack
-
-| Layer         | Tools                                               |
-|---------------|-----------------------------------------------------|
-| Frontend      | Vanilla JavaScript, Vite                            |
-| Map           | Leaflet, OpenStreetMap tiles (no API key)           |
-| Place search  | Photon (OpenStreetMap geocoder, no API key)         |
-| Data pipeline | Python, pyshp                                       |
-| Data          | Vadodara bus stop and depot shapefiles → static JSON |
-| Tests         | Vitest, pytest                                      |
-| Hosting       | GitHub Pages via GitHub Actions                     |
-
----
-
-## 🧪 How to Run Locally
-
-Needs **Node 22.12+** ([nodejs.org](https://nodejs.org), LTS) and **Python 3.10+** ([python.org](https://www.python.org/downloads/); on Windows tick "Add python.exe to PATH").
+Requires Node 22.12+ and Python 3.10+.
 
 ```bash
 git clone https://github.com/NilkanthSuthar/Bus-Route.easy.git
 cd Bus-Route.easy
 pip install -r pipeline/requirements.txt
 npm install
-npm run data   # builds web/public/data/*.json from the shapefiles
+npm run data   # build web/public/data/*.json from the shapefiles
 npm run dev    # http://localhost:5173
 ```
 
-**Road shapes:** to draw lines along the real streets instead of straight lines between stops, run this once with an internet connection and commit the result:
+| Command | What it does |
+|---|---|
+| `npm run data` | Build the app's JSON data from the shapefiles |
+| `npm run shapes` | Fetch road shapes from the public OSRM server into `pipeline/shapes.json` (needs internet; only fetches stop pairs not already cached) |
+| `npm run dev` | Development server |
+| `npm run build` | Data + production build into `dist/` |
+| `npm run preview` | Serve the production build (offline mode only works here, not in `dev`) |
+| `npm test` | JS unit tests (Vitest) |
+| `npm run test:data` | Pipeline tests (pytest) |
 
-```bash
-npm run shapes   # fetches road paths from the public OSRM server into pipeline/shapes.json (~1 min)
-```
+GPS only works on `localhost` or HTTPS, so testing location from a phone needs the deployed site.
 
-It only fetches stop pairs it doesn't have yet. Any stretch where the road route looks wrong (a big detour, or a stop far from a road) stays a straight line. Real road lengths also make the trip times more accurate.
+## Deployment
 
-Other commands:
+Pushes to `master` run the tests and deploy `dist/` to GitHub Pages via GitHub Actions. Pages must be enabled once under **Settings → Pages → Source → GitHub Actions**.
 
-```bash
-npm test           # JS unit tests
-npm run test:data  # pipeline tests
-npm run build      # data + production build into dist/
-```
+## How it works
 
-Pushing to `master` runs the tests and deploys `dist/` to GitHub Pages (set **Settings → Pages → Source** to **GitHub Actions** once).
+The app is fully static. A Python pipeline turns the GIS data into JSON at build time, and everything else, including trip planning, runs in the browser.
 
----
-
-## 🗂 Project Layout
-
-```
-pipeline/         Python: shapefiles -> JSON
-  build.py        reads stops, routes and depots, writes web/public/data/
-  ordering.py     estimates stop order for each line
-  shapes.py       fetches road shapes between stops (OSRM) into shapes.json
-  validate.py     sanity checks (fails the build on bad data)
-web/
-  index.html
-  src/data/       loads the JSON and builds lookups (places, departures, nearby)
-  src/lib/        geo and search helpers
-  src/routing/    trip planner (Dijkstra over stops and line segments)
-  src/ui/         map and panel views
-vadodara-bus-*/   raw GIS data (stops in both directions, depots)
-```
+| Part | Tools |
+|---|---|
+| Frontend | Vanilla JavaScript, Vite |
+| Map | Leaflet with OpenStreetMap tiles |
+| Place search | Photon (OpenStreetMap geocoder) |
+| Road shapes | OSRM, fetched once and committed |
+| Data pipeline | Python, pyshp |
 
 ### How stop order is estimated
 
-Every line starts or ends at the city bus station, so for each line and direction the pipeline:
+For each line and direction, `pipeline/ordering.py`:
 
-1. Starts at the station and pins the far end to the stop furthest from it.
-2. Builds a path through the remaining stops (nearest neighbour), then shortens it with 2-opt.
-3. Drops stops that are kilometres away from the rest of the line (likely tagging mistakes in the source data).
+1. Anchors one end at the city bus station stop (or the stop nearest to it) and the other at the stop furthest from it.
+2. Orders the remaining stops by nearest neighbour, then shortens the path with 2-opt.
+3. Drops stops more than 4 km from the rest of the line, which are likely tagging mistakes in the source data.
 
-Real buses don't always take the shortest path, so if you know the actual stop order for a line, it can be added to the pipeline to replace the estimate.
+Inbound stops are ordered the same way and reversed, so they end at the station. Real stop sequences can replace these estimates when available.
 
----
+### Road shapes
 
-## 🗺 Roadmap
+`npm run shapes` asks OSRM for the driving route between each pair of consecutive stops. A stretch stays a straight line if the road route is both over 3 times and over 800 m longer than the straight distance, or if a stop is more than 150 m from a road. Road lengths are also used for ride times; without a shape, the planner uses the straight distance × 1.3.
 
-1. ~~Clean foundation: Vite, CI, Pages deploy~~
-2. ~~Data pipeline with estimated stop order~~
-3. ~~Trip planner in the browser (fastest route and fewest changes)~~
-4. ~~Recent searches, offline support~~
-5. Feedback and complaints
-6. Live tracking, if a GPS feed becomes available
+### Trip planner
+
+`web/src/routing/planner.js` runs Dijkstra's algorithm over stops and line segments. "Fastest" minimises total time; "Fewest changes" minimises the number of buses first, then time. If the destination is within 1.5 km, walking is offered as well.
+
+## Project layout
+
+```
+pipeline/
+  build.py        shapefiles -> web/public/data/*.json
+  ordering.py     stop order estimate
+  shapes.py       road shapes (OSRM) -> shapes.json
+  validate.py     data checks; errors fail the build
+  tests/
+web/
+  index.html
+  public/         icons, manifest, service worker
+  src/data/       loads the JSON, builds lookups
+  src/lib/        geo, search, place search, GPS tracking, recents
+  src/routing/    trip planner
+  src/ui/         map, views, bottom sheet
+scripts/
+  python.mjs      runs Python as python3, python or py, whichever is installed
+vadodara-bus-stop_down/, vadodara-bus-stop_up/, vadodara-bus-depot/
+                  source shapefiles
+```
+
+## Roadmap
+
+- Feedback and complaints
+- Real stop sequences and timetables, to replace the estimates
+- Live bus positions, if a GPS feed becomes available
